@@ -22,7 +22,7 @@ data = None
 
 with tab_manual:
     manual_text = st.text_area(
-        "Enter numbers separated by commas or spaces:",
+        "Enter numeric values:",
         "1.2, 2.1, 2.5, 3.2, 3.3"
     )
     try:
@@ -33,7 +33,7 @@ with tab_manual:
         data = None
 
 with tab_csv:
-    uploaded = st.file_uploader("Upload CSV file with one numeric column")
+    uploaded = st.file_uploader("Upload CSV (numeric column)")
     if uploaded:
         try:
             df = pd.read_csv(uploaded)
@@ -42,7 +42,7 @@ with tab_csv:
                 raise ValueError("No numeric columns found")
             col = numeric_cols[0]
             data = df[col].dropna().values
-            st.success(f"Loaded {len(data)} points from column: {col}")
+            st.success(f"Loaded {len(data)} points from: {col}")
             st.dataframe(df.head())
         except Exception as e:
             st.error(f"Error reading CSV: {e}")
@@ -53,21 +53,20 @@ if data is None or len(data) == 0:
     st.stop()
 
 DISTRIBUTIONS = {
-    "Normal (norm)": stats.norm,
-    "Exponential (expon)": stats.expon,
-    "Gamma (gamma)": stats.gamma,
-    "Weibull (weibull_min)": stats.weibull_min,
-    "Beta (beta)": stats.beta,
-    "Lognormal (lognorm)": stats.lognorm,
-    "Chi-square (chi2)": stats.chi2,
-    "Student t (t)": stats.t,
-    "Uniform (uniform)": stats.uniform,
-    "Rayleigh (rayleigh)": stats.rayleigh,
+    "Normal": stats.norm,
+    "Exponential": stats.expon,
+    "Gamma": stats.gamma,
+    "Weibull": stats.weibull_min,
+    "Beta": stats.beta,
+    "Lognormal": stats.lognorm,
+    "Chi-square": stats.chi2,
+    "Student t": stats.t,
+    "Uniform": stats.uniform,
+    "Rayleigh": stats.rayleigh,
 }
 
 st.header("2. Fit a Distribution")
-
-dist_name = st.selectbox("Choose a distribution:", list(DISTRIBUTIONS.keys()))
+dist_name = st.selectbox("Select distribution:", list(DISTRIBUTIONS.keys()))
 dist = DISTRIBUTIONS[dist_name]
 
 params = dist.fit(data)
@@ -77,42 +76,43 @@ tab_auto, tab_manual_fit = st.tabs(["Automatic Fit", "Manual Fit"])
 
 with tab_auto:
     st.subheader("Fitted Parameters")
-    for name, val in zip(param_names, params):
-        st.write(f"**{name}:** {val:.4f}")
+    cols = st.columns(len(params))
+    for c, name, val in zip(cols, param_names, params):
+        c.metric(name, f"{val:.4f}")
 
     x = np.linspace(min(data), max(data), 500)
     shape_params = params[:-2]
     loc = params[-2]
     scale = params[-1]
-
     pdf_vals = dist.pdf(x, *shape_params, loc=loc, scale=scale)
 
-    st.subheader("Histogram + Fitted PDF")
+    st.subheader("Histogram with Fitted PDF")
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.hist(data, bins=25, density=True, alpha=0.5, label="Data")
-    ax.plot(x, pdf_vals, 'r-', linewidth=2, label="Fitted PDF")
-    ax.legend()
+    ax.hist(data, bins=25, density=True, alpha=0.4, color="#2ecc71", edgecolor="black")
+    ax.plot(x, pdf_vals, color="#1e8449", linewidth=2)
+    ax.set_title("Fitted PDF", fontsize=14)
     st.pyplot(fig)
 
-    st.subheader("Fit Quality Metrics")
     hist_vals, bin_edges = np.histogram(data, bins=25, density=True)
     centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     fitted_vals = dist.pdf(centers, *shape_params, loc=loc, scale=scale)
 
-    mse = np.mean((hist_vals - fitted_vals)**2)
+    mse = np.mean((hist_vals - fitted_vals) ** 2)
     max_err = np.max(np.abs(hist_vals - fitted_vals))
 
-    st.write(f"**MSE:** {mse:.6f}")
-    st.write(f"**Max Error:** {max_err:.6f}")
+    st.subheader("Fit Quality")
+    st.write(f"MSE: {mse:.6f}")
+    st.write(f"Max Error: {max_err:.6f}")
 
 with tab_manual_fit:
-    st.subheader("Manual Distribution Fitting")
+    st.subheader("Manual Parameter Adjustment")
 
-    shapes = dist.shapes.split(",") if dist.shapes else []
     shape_sliders = []
+    shapes = dist.shapes.split(",") if dist.shapes else []
 
-    for i, shape_name in enumerate(shapes):
-        val = st.slider(shape_name.strip(), 0.01, 10.0, 1.0)
+    cols = st.columns(len(shapes)) if shapes else []
+    for col, name in zip(cols, shapes):
+        val = col.slider(name.strip(), 0.01, 10.0, 1.0)
         shape_sliders.append(val)
 
     loc_val = st.slider("loc", -10.0, 10.0, 0.0)
@@ -124,13 +124,14 @@ with tab_manual_fit:
         pdf_manual = dist.pdf(x, *shape_sliders, loc=loc_val, scale=scale_val)
 
         fig2, ax2 = plt.subplots(figsize=(7, 4))
-        ax2.hist(data, bins=25, density=True, alpha=0.5, label="Data")
-        ax2.plot(x, pdf_manual, 'g-', linewidth=2, label="Manual PDF")
-        ax2.legend()
+        ax2.hist(data, bins=25, density=True, alpha=0.4, color="#2ecc71", edgecolor="black")
+        ax2.plot(x, pdf_manual, color="#1e8449", linewidth=2)
+        ax2.set_title("Manual PDF", fontsize=14)
         st.pyplot(fig2)
 
     except Exception as e:
         st.error(f"Error computing PDF: {e}")
+
 
 
 
